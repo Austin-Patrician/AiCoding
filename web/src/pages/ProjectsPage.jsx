@@ -85,8 +85,13 @@ const ProjectsPage = () => {
     }
   };
 
-  const handleCardClick = (projectId) => {
-    navigate(`/coding/analysis/new?project=${projectId}`);
+  const handleCardClick = (project) => {
+    setEditingProject(project);
+    form.setFieldsValue({
+      name: project.name,
+      description: project.description
+    });
+    setIsModalVisible(true);
   };
 
   if (loading) {
@@ -128,7 +133,7 @@ const ProjectsPage = () => {
               key={project.id}
               hoverable
               className="cursor-pointer transition-shadow hover:shadow-lg relative group"
-              onClick={() => handleCardClick(project.id)}
+              onClick={() => handleCardClick(project)}
             >
               <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <Dropdown

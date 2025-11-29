@@ -5,6 +5,7 @@ AIGC Service - 统一管理 AI 生成服务
 """
 import json
 import asyncio
+import logging
 from typing import List, Dict, Any, Optional
 from functools import lru_cache
 from aiolimiter import AsyncLimiter
@@ -13,6 +14,8 @@ import openai
 from openai import OpenAI, AsyncOpenAI
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class AIGCService:
@@ -48,6 +51,15 @@ class AIGCService:
         self.base_url = settings.OPENAI_BASE_URL
         self.default_model = settings.OPENAI_DEFAULT_MODEL
         
+        # 输出配置信息（调试用）
+        logger.info("=" * 60)
+        logger.info("AIGC Service 配置信息:")
+        logger.info(f"  API Key: {self.api_key[:10]}...{self.api_key[-8:] if self.api_key else 'None'}")
+        logger.info(f"  Base URL: {self.base_url or 'None (使用默认 api.openai.com)'}")
+        logger.info(f"  Default Model: {self.default_model}")
+        logger.info(f"  Rate Limit: {settings.OPENAI_RATE_LIMIT_PER_MINUTE}/min")
+        logger.info("=" * 60)
+        
         # 限流器：每分钟最大请求数
         self.rate_limiter = AsyncLimiter(
             settings.OPENAI_RATE_LIMIT_PER_MINUTE, 
@@ -75,6 +87,7 @@ class AIGCService:
             client_kwargs = {"api_key": self.api_key}
             if self.base_url:
                 client_kwargs["base_url"] = self.base_url
+            logger.info(f"初始化 AsyncOpenAI 客户端: base_url={client_kwargs.get('base_url', 'default')}")
             self._async_client = AsyncOpenAI(**client_kwargs)
         return self._async_client
     

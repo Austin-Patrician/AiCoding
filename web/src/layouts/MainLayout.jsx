@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Tooltip, Badge } from 'antd';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Tooltip, Badge, Dropdown } from 'antd';
 import { 
   ProjectOutlined,
   CodeOutlined,
@@ -14,18 +14,19 @@ import {
   ClusterOutlined,
   DownOutlined,
   SettingOutlined,
-  BellOutlined
+  BellOutlined,
+  LogoutOutlined
 } from '@ant-design/icons';
+import { useAuth } from '../contexts/AuthContext';
 
 // 路由配置 - 用于面包屑和菜单
 const routeConfig = {
   '/projects': { name: '项目管理', icon: <ProjectOutlined /> },
   '/coding': { name: '编码分析', icon: <CodeOutlined /> },
-  '/coding/tasks': { name: '任务中心', parent: '/coding', icon: <UnorderedListOutlined /> },
-  '/coding/analysis/new': { name: '新建分析', parent: '/coding' },
   '/coding/analysis/results': { name: '分析结果', parent: '/coding' },
   '/code-library': { name: '编码库', icon: <BookOutlined /> },
   '/workshop/cluster-test': { name: '聚类测试', parent: '/workshop', icon: <ClusterOutlined /> },
+  '/system': { name: '系统管理', icon: <SettingOutlined /> },
 };
 
 // 获取面包屑
@@ -59,26 +60,39 @@ const getBreadcrumbs = (pathname) => {
 // ==================== Sidebar Component ====================
 const Sidebar = ({ collapsed }) => {
   const location = useLocation();
+  const { user, hasPermission } = useAuth();
   const [openKeys, setOpenKeys] = useState(() => {
     if (location.pathname.startsWith('/workshop')) return ['workshop'];
     return [];
   });
 
   // 菜单配置 - 统一管理
-  const menuItems = [
-    { path: '/projects', name: '项目管理', icon: <ProjectOutlined /> },
-    { path: '/coding', name: '编码分析', icon: <CodeOutlined /> },
-    { path: '/coding/tasks', name: '任务中心', icon: <UnorderedListOutlined /> },
-    { path: '/code-library', name: '编码库', icon: <BookOutlined /> },
+  const allMenuItems = [
+    { path: '/projects', name: '项目管理', icon: <ProjectOutlined />, permission: '/projects' },
+    { path: '/coding', name: '编码分析', icon: <CodeOutlined />, permission: '/coding' },
+    { path: '/code-library', name: '编码库', icon: <BookOutlined />, permission: '/code-library' },
     { 
       key: 'workshop',
       name: '测试工坊', 
       icon: <ExperimentOutlined />,
+      permission: '/workshop',
       children: [
-        { path: '/workshop/cluster-test', name: '聚类测试', icon: <ClusterOutlined /> },
+        { path: '/workshop/cluster-test', name: '聚类测试', icon: <ClusterOutlined />, permission: '/workshop/cluster-test' },
       ]
     },
+    { path: '/system', name: '系统管理', icon: <SettingOutlined />, permission: '/system' },
   ];
+
+  // 根据权限过滤菜单项
+  const menuItems = allMenuItems.filter(item => {
+    if (user?.is_superuser) return true; // 超级管理员显示所有菜单
+    if (item.children) {
+      // 子菜单：过滤子项，如果有可访问的子项则显示
+      item.children = item.children.filter(child => hasPermission(child.permission));
+      return item.children.length > 0;
+    }
+    return hasPermission(item.permission);
+  });
 
   const toggleSubmenu = (key) => {
     setOpenKeys(prev => 
@@ -232,13 +246,12 @@ const Sidebar = ({ collapsed }) => {
         ) : (
           <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white text-xs font-medium shadow-sm">
-              U
+              {user?.username?.[0]?.toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-700 truncate">用户名</p>
-              <p className="text-[10px] text-slate-400">管理员</p>
+              <p className="text-sm font-medium text-slate-700 truncate">{user?.username || '用户名'}</p>
+              <p className="text-[10px] text-slate-400">{user?.is_superuser ? '超级管理员' : '普通用户'}</p>
             </div>
-            <SettingOutlined className="text-slate-400 hover:text-slate-600 transition-colors" />
           </div>
         )}
       </div>
@@ -249,7 +262,83 @@ const Sidebar = ({ collapsed }) => {
 // ==================== Header Component ====================
 const Header = ({ collapsed, onToggle }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const breadcrumbs = getBreadcrumbs(location.pathname);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const handleMenuClick = ({ key }) => {
+    switch (key) {
+      case 'profile':
+        // 跳转到个人信息页面
+        navigate('/profile');
+        break;
+      case 'system':
+        // 跳转到系统管理
+        navigate('/system');
+        break;
+      case 'logout':
+        handleLogout();
+        break;
+      default:
+        break;
+    }
+  };
+
+  const userMenuItems = [
+    {
+      key: 'user-info',
+      type: 'group',
+      label: (
+        <div className="px-2 py-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium">
+              {user?.username?.[0]?.toUpperCase() || 'U'}
+            </div>
+            <div>
+              <p className="font-medium text-gray-800">{user?.username || '用户'}</p>
+              <p className="text-xs text-gray-500">
+                {user?.email || '未设置邮箱'}
+              </p>
+            </div>
+          </div>
+          {user?.is_superuser && (
+            <div className="mt-2 px-2">
+              <span className="inline-block px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded">
+                超级管理员
+              </span>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: '个人信息',
+    },
+    ...(user?.is_superuser ? [{
+      key: 'system',
+      icon: <SettingOutlined />,
+      label: '系统管理',
+    }] : []),
+    {
+      type: 'divider',
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      danger: true,
+    },
+  ];
 
   return (
     <header className="h-14 bg-white/80 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-4 sticky top-0 z-30 shadow-[0_1px_3px_-1px_rgba(0,0,0,0.05)]">
@@ -288,12 +377,18 @@ const Header = ({ collapsed, onToggle }) => {
 
         <div className="w-px h-6 bg-slate-200 mx-1" />
         
-        <button className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 rounded-lg transition-all">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-medium shadow-sm">
-            <UserOutlined />
-          </div>
-          <DownOutlined className="text-[10px] text-slate-400" />
-        </button>
+        <Dropdown 
+          menu={{ items: userMenuItems, onClick: handleMenuClick }} 
+          placement="bottomRight" 
+          trigger={['click']}
+          overlayClassName="user-dropdown"
+        >
+          <button className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 rounded-lg transition-all">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-medium shadow-sm">
+              {user?.username?.[0]?.toUpperCase() || <UserOutlined />}
+            </div>
+          </button>
+        </Dropdown>
       </div>
     </header>
   );

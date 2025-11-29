@@ -13,6 +13,9 @@ async def extract_codes_with_llm(texts: List[str], max_codes: int = 10, sample_s
     使用 LLM 从文本中提取编码主题
     采用两阶段工作流：1) 初步提取 2) 精炼验证
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # 随机采样
     if len(texts) > sample_size:
         import random
@@ -25,6 +28,7 @@ async def extract_codes_with_llm(texts: List[str], max_codes: int = 10, sample_s
     
     try:
         aigc = get_aigc_service()
+        logger.info("开始调用 LLM 提取编码...")
         
         # 阶段1：初步提取主题
         prompt_stage1 = f"""你是一位专业的定性数据分析专家。请仔细分析以下问卷开放题回答，提取出{max_codes}个主要的主题编码。
@@ -32,63 +36,130 @@ async def extract_codes_with_llm(texts: List[str], max_codes: int = 10, sample_s
 数据样本（共{len(sample_texts)}条）：
 {text_block}
 
-要求：
-1. 提取{max_codes}个最具代表性的主题编码
-2. 每个编码需要简洁明了，通常2-6个字
-3. 编码应该互斥且完整覆盖主要主题
-4. 避免过于宽泛或过于具体
+任务要求：
+1. 提取{max_codes}个最具代表性的主题编码。
+2. 每个编码名称（code）需要简洁明了，通常2-6个字。
+3. 编码应该互斥且完整覆盖主要主题。
+4. 必须严格遵守 JSON 输出格式。
 
-请按以下JSON格式输出：
+输出格式示例（请严格照此格式输出）：
 {{
     "codes": [
-        {{"code": "主题名称", "description": "简要说明该主题包含的内容", "keywords": ["关键词1", "关键词2"]}},
-        ...
+        {{
+            "code": "服务态度",
+            "description": "涉及员工的服务态度、热情程度等",
+            "keywords": ["态度", "热情", "冷漠"]
+        }},
+        {{
+            "code": "产品质量",
+            "description": "涉及产品的耐用性、做工等",
+            "keywords": ["质量", "做工", "坏了"]
+        }}
     ]
 }}
 
-只输出JSON，不要其他内容。"""
+请只输出上述 JSON 格式内容，不要包含 Markdown 代码块标记（如 ```json），不要包含其他解释文字。"""
 
         parsed = await aigc.chat_completion_json(
             messages=[
-                {"role": "system", "content": "你是一个专业的定性数据分析助手，擅长从开放题回答中提取主题编码。请只输出JSON格式结果。"},
+                {"role": "system", "content": "你是一个严格遵守 JSON 格式输出的定性数据分析助手。你只输出符合 Schema 的 JSON 数据，不进行任何闲聊。"},
                 {"role": "user", "content": prompt_stage1}
             ],
-            temperature=0.3
+            temperature=0.1  # 降低温度以提高稳定性
         )
         
+        logger.info(f"LLM 第一阶段响应类型: {type(parsed)}")
+        logger.info(f"LLM 第一阶段响应内容: {parsed}")
+        
+        # 确保 parsed 是字典
+        if isinstance(parsed, str):
+            logger.error(f"LLM 返回了字符串而不是字典: {parsed[:200]}")
+            import json
+            try:
+                parsed = json.loads(parsed)
+            except:
+                logger.error("无法将字符串解析为 JSON")
+                return []
+        
         initial_codes = parsed.get('codes', [])
+        logger.info(f"提取到 {len(initial_codes)} 个初始编码")
         
         # 阶段2：验证和精炼
         if len(initial_codes) > 0:
-            codes_summary = "\n".join([f"- {c['code']}: {c['description']}" for c in initial_codes])
+            # 使用 JSON 格式展示给 LLM，比纯文本列表更清晰
+            import json
+            codes_summary = json.dumps(initial_codes, ensure_ascii=False, indent=2)
             
             prompt_stage2 = f"""请审查以下提取的编码体系，确保：
-1. 编码之间互斥（没有重叠）
-2. 编码名称简洁专业
-3. 覆盖主要主题
+1. 编码之间互斥（没有重叠）。
+2. 编码名称简洁专业。
+3. 覆盖主要主题。
 
 当前编码体系：
 {codes_summary}
 
-如果需要调整，请返回改进后的编码；如果已经很好，直接返回原编码。
-请以JSON格式输出：{{"codes": [...]}}"""
+如果需要调整，请返回改进后的编码列表；如果已经很好，直接返回原列表。
+必须保持与输入相同的 JSON 结构，即包含 "codes" 键的对象。
+
+输出格式示例：
+{{
+    "codes": [
+        {{
+            "code": "改进后的编码名",
+            "description": "描述",
+            "keywords": ["关键词"]
+        }}
+    ]
+}}
+
+请只输出 JSON。"""
 
             parsed2 = await aigc.chat_completion_json(
                 messages=[
-                    {"role": "system", "content": "你是编码体系质量审查专家。请只输出JSON格式结果。"},
+                    {"role": "system", "content": "你是编码体系质量审查专家，严格遵守 JSON 输出格式。"},
                     {"role": "user", "content": prompt_stage2}
                 ],
-                temperature=0.2
+                temperature=0.1
             )
+            
+            # 确保 parsed2 是字典
+            if isinstance(parsed2, str):
+                logger.error(f"LLM 第二阶段返回了字符串: {parsed2[:200]}")
+                import json
+                try:
+                    parsed2 = json.loads(parsed2)
+                except:
+                    logger.error("无法将字符串解析为 JSON")
+                    parsed2 = {'codes': initial_codes}
             
             final_codes = parsed2.get('codes', initial_codes)
             
-            return final_codes[:max_codes]
+            # 校验 final_codes 格式
+            validated_codes = []
+            for c in final_codes:
+                if isinstance(c, dict) and 'code' in c:
+                    validated_codes.append(c)
+                elif isinstance(c, str):
+                    # 尝试修复字符串格式的编码
+                    validated_codes.append({
+                        "code": c,
+                        "description": c,
+                        "keywords": [c]
+                    })
+            
+            if not validated_codes:
+                logger.warning("第二阶段校验后无有效编码，回退到初始编码")
+                validated_codes = initial_codes
+                
+            logger.info(f"最终返回 {len(validated_codes[:max_codes])} 个编码")
+            
+            return validated_codes[:max_codes]
         
+        logger.info(f"直接返回 {len(initial_codes[:max_codes])} 个初始编码")
         return initial_codes[:max_codes]
              
     except Exception as e:
-        print(f"Error in LLM extraction: {e}")
+        logger.error(f"Error in LLM extraction: {e}", exc_info=True)
         raise e
 
 

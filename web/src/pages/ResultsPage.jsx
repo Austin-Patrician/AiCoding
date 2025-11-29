@@ -1,13 +1,34 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Table, Progress, Spin, Button, message, Empty } from 'antd';
-import { DownloadOutlined, ReloadOutlined, ArrowLeftOutlined } from '@ant-design/icons';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { Card, Table, Progress, Spin, Button, message, Empty, Tabs, Tag, Input, Space } from 'antd';
+import { DownloadOutlined, ArrowLeftOutlined, SearchOutlined } from '@ant-design/icons';
+import ReactECharts from 'echarts-for-react';
 import axios from 'axios';
 
 const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+const COLORS = [
+  '#3b82f6', // Blue
+  '#10b981', // Emerald
+  '#f59e0b', // Amber
+  '#ef4444', // Red
+  '#8b5cf6', // Violet
+  '#ec4899', // Pink
+  '#14b8a6', // Teal
+  '#f97316', // Orange
+  '#6366f1', // Indigo
+  '#84cc16', // Lime
+  '#06b6d4', // Cyan
+  '#d946ef', // Fuchsia
+  '#f43f5e', // Rose
+  '#0ea5e9', // Sky
+  '#22c55e', // Green
+  '#eab308', // Yellow
+  '#a855f7', // Purple
+  '#64748b', // Slate
+  '#475569', // Slate Dark
+  '#94a3b8'  // Slate Light
+];
 
 const ResultsPage = () => {
   const { taskId } = useParams();
@@ -15,6 +36,71 @@ const ResultsPage = () => {
   const [taskData, setTaskData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(true);
+  const [activeColumn, setActiveColumn] = useState(null);
+  
+  // Search state
+  const [searchText, setSearchText] = useState('');
+  const [searchedColumn, setSearchedColumn] = useState('');
+  const searchInput = useRef(null);
+
+  const handleSearch = (selectedKeys, confirm, dataIndex) => {
+    confirm();
+    setSearchText(selectedKeys[0]);
+    setSearchedColumn(dataIndex);
+  };
+
+  const handleReset = (clearFilters) => {
+    clearFilters();
+    setSearchText('');
+  };
+
+  const getColumnSearchProps = (dataIndex) => ({
+    filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters, close }) => (
+      <div style={{ padding: 8 }} onKeyDown={(e) => e.stopPropagation()}>
+        <Input
+          ref={searchInput}
+          placeholder={`搜索 ${dataIndex}`}
+          value={selectedKeys[0]}
+          onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+          onPressEnter={() => handleSearch(selectedKeys, confirm, dataIndex)}
+          style={{ marginBottom: 8, display: 'block' }}
+        />
+        <Space>
+          <Button
+            type="primary"
+            onClick={() => handleSearch(selectedKeys, confirm, dataIndex)}
+            icon={<SearchOutlined />}
+            size="small"
+            style={{ width: 90 }}
+          >
+            搜索
+          </Button>
+          <Button
+            onClick={() => clearFilters && handleReset(clearFilters)}
+            size="small"
+            style={{ width: 90 }}
+          >
+            重置
+          </Button>
+          
+        </Space>
+      </div>
+    ),
+    filterIcon: (filtered) => (
+      <SearchOutlined style={{ color: filtered ? '#1677ff' : undefined }} />
+    ),
+    onFilter: (value, record) =>
+      record[dataIndex]
+        .toString()
+        .toLowerCase()
+        .includes(value.toLowerCase()),
+    onFilterDropdownOpenChange: (visible) => {
+      if (visible) {
+        setTimeout(() => searchInput.current?.select(), 100);
+      }
+    },
+    render: (text) => text,
+  });
 
   useEffect(() => {
     fetchTaskStatus();
@@ -34,6 +120,10 @@ const ResultsPage = () => {
       
       if (response.data.status === 'completed' || response.data.status === 'failed') {
         setPolling(false);
+        // Set default active column if not set
+        if (!activeColumn && response.data.results && Object.keys(response.data.results).length > 0) {
+          setActiveColumn(Object.keys(response.data.results)[0]);
+        }
       }
       
       setLoading(false);
@@ -84,18 +174,96 @@ const ResultsPage = () => {
 
   const { status, progress, total, results, statistics, error } = taskData;
 
+  // Get data for active column
+  const currentColumnData = activeColumn && results ? results[activeColumn] : null;
+  const currentStatistics = activeColumn && statistics ? statistics[activeColumn] : {};
+  
+  // Sort statistics by value descending
+  const sortedStatisticsEntries = Object.entries(currentStatistics || {}).sort(([, a], [, b]) => b - a);
+
   // Prepare chart data
-  const chartData = Object.entries(statistics || {}).map(([name, value]) => ({
+  const chartData = sortedStatisticsEntries.map(([name, value]) => ({
     name,
     value
+  }));
+
+  const getChartOption = () => ({
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)',
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#eee',
+      borderWidth: 1,
+      textStyle: {
+        color: '#333'
+      }
+    },
+    legend: {
+      type: 'scroll',
+      orient: 'vertical',
+      right: 10,
+      top: 'middle',
+      bottom: 20,
+      textStyle: {
+        color: '#64748b'
+      },
+      pageIconColor: '#64748b',
+      pageTextStyle: {
+        color: '#64748b'
+      }
+    },
+    color: COLORS,
+    series: [
+      {
+        name: '分类统计',
+        type: 'pie',
+        radius: ['50%', '75%'],
+        center: ['40%', '50%'],
+        avoidLabelOverlap: true,
+        itemStyle: {
+          borderRadius: 8,
+          borderColor: '#fff',
+          borderWidth: 2
+        },
+        label: {
+          show: false,
+          position: 'center'
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 18,
+            fontWeight: 'bold',
+            formatter: '{b}\n{d}%',
+            color: '#334155'
+          },
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.2)'
+          }
+        },
+        labelLine: {
+          show: false
+        },
+        data: chartData
+      }
+    ]
+  });
+
+  // Generate filters from statistics
+  const codeFilters = sortedStatisticsEntries.map(([code]) => ({
+    text: code,
+    value: code,
   }));
 
   const columns = [
     {
       title: '行号',
-      dataIndex: 'row_index',
-      key: 'row_index',
-      width: 80,
+      dataIndex: 'row_id', // Changed from row_index to row_id as per backend
+      key: 'row_id',
+      width: 120,
+      render: (text) => <span className="text-gray-500 text-xs">{text}</span>
     },
     {
       title: '原始文本',
@@ -103,16 +271,20 @@ const ResultsPage = () => {
       key: 'original_text',
       ellipsis: true,
       width: 400,
+      ...getColumnSearchProps('original_text'),
     },
     {
       title: '分类结果',
       dataIndex: 'assigned_code',
       key: 'assigned_code',
       width: 150,
+      filters: codeFilters,
+      filterMultiple: true,
+      onFilter: (value, record) => record.assigned_code === value,
       render: (code) => (
-        <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
+        <Tag color="blue">
           {code}
-        </span>
+        </Tag>
       ),
     },
     {
@@ -122,7 +294,31 @@ const ResultsPage = () => {
       width: 100,
       render: (conf) => conf ? `${(conf * 100).toFixed(1)}%` : '-',
     },
+    {
+      title: '分类方法',
+      dataIndex: 'method',
+      key: 'method',
+      width: 120,
+      render: (method) => {
+        const map = {
+          'exact_mapping': '精确映射',
+          'partial_mapping': '部分映射',
+          'fixed_code_match': '固定编码',
+          'keyword_match': '关键词',
+          'ai_classification': 'AI分类',
+          'ai_batch_classification': 'AI批量',
+          'default_fallback': '默认归类'
+        };
+        return <span className="text-xs text-gray-500">{map[method] || method}</span>;
+      }
+    }
   ];
+
+  // Generate tabs items
+  const tabItems = results ? Object.keys(results).map(colName => ({
+    key: colName,
+    label: colName,
+  })) : [];
 
   return (
     <div>
@@ -139,14 +335,23 @@ const ResultsPage = () => {
           <p className="text-slate-500 mt-1">任务 ID: {taskId}</p>
         </div>
         {status === 'completed' && (
-          <Button 
-            type="primary" 
-            icon={<DownloadOutlined />} 
-            size="large"
-            onClick={handleExport}
-          >
-            导出结果
-          </Button>
+          <Space>
+            <Button 
+              icon={<DownloadOutlined />} 
+              size="large"
+              onClick={handleExport}
+            >
+              导出结果
+            </Button>
+            <Button 
+              type="primary" 
+              icon={<DownloadOutlined />} 
+              size="large"
+              onClick={handleExport}
+            >
+              导出全部
+            </Button>
+          </Space>
         )}
       </div>
 
@@ -179,68 +384,66 @@ const ResultsPage = () => {
 
       {status === 'completed' && (
         <>
-          {/* Statistics Card */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <Card title="分类统计" extra={<span className="text-slate-500">总计: {total} 条</span>}>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+          <Tabs 
+            activeKey={activeColumn} 
+            onChange={setActiveColumn}
+            type="card"
+            className="mb-4"
+            items={tabItems}
+          />
+
+          {activeColumn && (
+            <>
+              {/* Statistics Card */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <Card title={`分类统计 - ${activeColumn}`} extra={<span className="text-slate-500">总计: {total} 条</span>}>
+                  <ReactECharts 
+                    option={getChartOption()} 
+                    style={{ height: 300, width: '100%' }} 
+                    notMerge={true}
+                    lazyUpdate={true}
+                  />
+                </Card>
+
+                <Card title={`分类分布 - ${activeColumn}`}>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {sortedStatisticsEntries.map(([code, count], index) => (
+                      <div key={code} className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div 
+                            className="w-4 h-4 rounded"
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="font-medium text-slate-700">{code}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-semibold text-slate-800">{count}</span>
+                          <span className="text-sm text-slate-500 ml-2">
+                            ({((count / total) * 100).toFixed(1)}%)
+                          </span>
+                        </div>
+                      </div>
                     ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </Card>
-
-            <Card title="分类分布">
-              <div className="space-y-3">
-                {Object.entries(statistics || {}).map(([code, count], index) => (
-                  <div key={code} className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div 
-                        className="w-4 h-4 rounded"
-                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                      />
-                      <span className="font-medium text-slate-700">{code}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-lg font-semibold text-slate-800">{count}</span>
-                      <span className="text-sm text-slate-500 ml-2">
-                        ({((count / total) * 100).toFixed(1)}%)
-                      </span>
-                    </div>
                   </div>
-                ))}
+                </Card>
               </div>
-            </Card>
-          </div>
 
-          {/* Results Table */}
-          <Card title="详细结果" className="mb-6">
-            <Table
-              columns={columns}
-              dataSource={results}
-              rowKey="row_index"
-              pagination={{
-                pageSize: 20,
-                showSizeChanger: true,
-                showTotal: (total) => `共 ${total} 条记录`,
-              }}
-              scroll={{ x: true }}
-            />
-          </Card>
+              {/* Results Table */}
+              <Card title={`详细结果 - ${activeColumn}`} className="mb-6">
+                <Table
+                  columns={columns}
+                  dataSource={currentColumnData?.results || []}
+                  rowKey="row_id"
+                  pagination={{
+                    pageSize: 20,
+                    showSizeChanger: true,
+                    showTotal: (total) => `共 ${total} 条记录`,
+                  }}
+                  scroll={{ x: true }}
+                />
+              </Card>
+            </>
+          )}
         </>
       )}
     </div>

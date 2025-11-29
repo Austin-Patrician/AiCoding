@@ -16,3 +16,5 @@ umap-learn
 hdbscan
 redis>=5.0.0
 aiolimiter>=1.1.0
+passlib[bcrypt]
+python-jose[cryptography]

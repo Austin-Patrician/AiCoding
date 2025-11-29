@@ -282,7 +282,7 @@ const CodingPage = () => {
       message.success('分析任务已创建 (草稿状态)');
       setIsModalVisible(false);
       // Navigate to task list instead of results
-      navigate('/coding/tasks');
+      navigate('/coding');
       
     } catch (error) {
       console.error(error);

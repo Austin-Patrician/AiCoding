@@ -9,16 +9,19 @@ import {
   FileTextOutlined,
   ReloadOutlined,
   DeleteOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  PlusOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import dayjs from 'dayjs';
+import NewAnalysisModal from '../components/NewAnalysisModal';
 
 const TaskListPage = () => {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -209,7 +212,16 @@ const TaskListPage = () => {
           <h1 className="text-2xl font-bold text-gray-800">任务列表</h1>
           <p className="text-gray-500 mt-1">查看和管理所有分析任务</p>
         </div>
-        <Button onClick={fetchTasks}>刷新</Button>
+        <Space>
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />} 
+            onClick={() => setIsModalOpen(true)}
+          >
+            新建分析
+          </Button>
+          <Button onClick={fetchTasks}>刷新</Button>
+        </Space>
       </div>
 
       <Card className="shadow-sm">
@@ -221,6 +233,15 @@ const TaskListPage = () => {
           pagination={{ pageSize: 10 }}
         />
       </Card>
+
+      <NewAnalysisModal 
+        open={isModalOpen} 
+        onCancel={() => setIsModalOpen(false)}
+        onSuccess={() => {
+          setIsModalOpen(false);
+          fetchTasks();
+        }}
+      />
     </div>
   );
 };
