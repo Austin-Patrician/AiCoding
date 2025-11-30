@@ -1,9 +1,10 @@
 from fastapi import APIRouter
-from app.api.endpoints import example, upload, analysis, projects, tasks, code_libraries, workshop, aigc, auth, users
+from app.api.endpoints import example, upload, analysis, projects, tasks, code_libraries, workshop, aigc, auth, users, anti_cheating
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["认证"])
 api_router.include_router(users.router, prefix="/users", tags=["用户管理"])
+api_router.include_router(anti_cheating.router, prefix="/anti-cheating", tags=["防作弊检测"])
 api_router.include_router(example.router, prefix="/example", tags=["example"])
 api_router.include_router(upload.router, prefix="/files", tags=["files"])
 api_router.include_router(analysis.router, prefix="/analysis", tags=["analysis"])

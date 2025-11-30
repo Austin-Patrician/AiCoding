@@ -216,6 +216,7 @@ async def get_available_routes(
         {"path": "/projects", "name": "项目管理"},
         {"path": "/coding", "name": "编码分析"},
         {"path": "/code-library", "name": "编码库"},
+        {"path": "/anti-cheating", "name": "防作弊检测"},
         {"path": "/workshop", "name": "测试工坊"},
         {"path": "/workshop/cluster-test", "name": "聚类测试"},
     ]

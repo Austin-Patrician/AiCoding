@@ -12,6 +12,8 @@ import TaskListPage from './pages/TaskListPage';
 import ClusterTestPage from './pages/ClusterTestPage';
 import ClassificationDetailPage from './pages/ClassificationDetailPage';
 import SystemPage from './pages/SystemPage';
+import AntiCheatingPage from './pages/AntiCheatingPage';
+import AntiCheatingResultPage from './pages/AntiCheatingResultPage';
 
 function App() {
   return (
@@ -29,6 +31,8 @@ function App() {
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="coding" element={<TaskListPage />} />
             <Route path="code-library" element={<CodeLibraryPage />} />
+            <Route path="anti-cheating" element={<AntiCheatingPage />} />
+            <Route path="anti-cheating/results/:taskId" element={<AntiCheatingResultPage />} />
             <Route path="system" element={<SystemPage />} />
             <Route path="coding/analysis/new" element={<UploadPage />} />
             <Route path="coding/analysis/results/:taskId" element={<ResultsPage />} />

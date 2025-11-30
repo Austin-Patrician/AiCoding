@@ -15,7 +15,8 @@ import {
   DownOutlined,
   SettingOutlined,
   BellOutlined,
-  LogoutOutlined
+  LogoutOutlined,
+  SafetyCertificateOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -25,6 +26,8 @@ const routeConfig = {
   '/coding': { name: '编码分析', icon: <CodeOutlined /> },
   '/coding/analysis/results': { name: '分析结果', parent: '/coding' },
   '/code-library': { name: '编码库', icon: <BookOutlined /> },
+  '/anti-cheating': { name: '防作弊检测', icon: <SafetyCertificateOutlined /> },
+  '/anti-cheating/results': { name: '检测结果', parent: '/anti-cheating' },
   '/workshop/cluster-test': { name: '聚类测试', parent: '/workshop', icon: <ClusterOutlined /> },
   '/system': { name: '系统管理', icon: <SettingOutlined /> },
 };
@@ -71,6 +74,7 @@ const Sidebar = ({ collapsed }) => {
     { path: '/projects', name: '项目管理', icon: <ProjectOutlined />, permission: '/projects' },
     { path: '/coding', name: '编码分析', icon: <CodeOutlined />, permission: '/coding' },
     { path: '/code-library', name: '编码库', icon: <BookOutlined />, permission: '/code-library' },
+    { path: '/anti-cheating', name: '防作弊检测', icon: <SafetyCertificateOutlined />, permission: '/anti-cheating' },
     { 
       key: 'workshop',
       name: '测试工坊', 
